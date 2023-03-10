@@ -1,7 +1,6 @@
-import pickle
 import numpy as np
 import matplotlib.pyplot as plt
-import networkx as nx
+
 
 
 def brushfire(configuration_space):
@@ -32,46 +31,42 @@ def brushfire(configuration_space):
     return empty
 
 
-def find_voronoi_points(original_array, brushfire_array):
+def find_voronoi_points(brushfire_array):
 
-    box_indices = np.nonzero(original_array != -1)
-    # Loop through the locations of the collision boxes and check for edges
-    edge_indices = []
-    G  = nx.Graph()
-    for i, j in zip(*box_indices):
-        for di, dj in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
-            ni, nj = i + di, j + dj
-            if ni < 0 or ni >= original_array.shape[0] or \
-                nj < 0 or nj >= original_array.shape[1]:
+    # Calculate the distance to the nearest zero value along the rows and cols
+    equal_dist_indices = []
+    for i in range(brushfire_array.shape[0]):
+        for j in range(brushfire_array.shape[1]):
+            if brushfire_array[i, j] == 0:  # If we are on a wall, the distance is very short
                 continue
-            if original_array[ni, nj] != -1:
-                G.add_edge((i, j), (ni, nj))
+            # Check the distances along the rows
+                # Compute the distances to the nearest zero value in all four directions
+            left_dist = np.abs(j - np.where(brushfire_array[i, :j] == 0)[0][-1]) if np.any(brushfire_array[i, :j] == 0) else np.inf
+            right_dist = np.abs(j - np.where(brushfire_array[i, j + 1:] == 0)[0][0] + j + 1) if np.any(brushfire_array[i, j + 1:] == 0) else np.inf
+            up_dist = np.abs(i - np.where(brushfire_array[:i, j] == 0)[0][-1]) if np.any(brushfire_array[:i, j] == 0) else np.inf
+            down_dist = np.abs(i - np.where(brushfire_array[i + 1:, j] == 0)[0][0] + i + 1) if np.any(brushfire_array[i + 1:, j] == 0) else np.inf
 
-    # Identify the connected components of the graph
-    components = list(nx.connected_components(G))
+            # Check if the distances to any zero value in the four directions are equal to another
+            if (left_dist == right_dist) or (left_dist == up_dist) or (left_dist == down_dist) or (
+                    right_dist == up_dist) or (right_dist == down_dist) or (up_dist == down_dist):
+                equal_dist_indices.append([i, j])
 
-    # Create a dictionary mapping each edge to its component index
-    component_dict = {}
-    for i, component in enumerate(components):
-        for edge in component:
-            component_dict[edge] = i
-
-    component_dict[len(component_dict)+1] = [(0, i) for i in range(len(original_array.shape[0]))]
-    component_dict[len(component_dict) + 2] = [(i, 0) for i in range(len(original_array.shape[0]))]
-    component_dict[len(component_dict) + 3] = [(len(original_array.shape[0]), i) for i in range(len(original_array.shape[0]))]
-    component_dict[len(component_dict) + 4] = [(i, len(original_array.shape[0])) for i in range(len(original_array.shape[0]))]
-
-
-
-    return None
+    # Return only the indexes of where the edge is
+    return equal_dist_indices
 
 
 
 
 def main():
-    configspace = np.load("config.pkl",allow_pickle=True)
+    configspace = np.load("config.pkl", allow_pickle=True)
     b=brushfire(configspace)
-    c = find_voronoi_points(configspace, b)
+    indices = np.array(find_voronoi_points(b))
+    # Extract the x and y coordinates from the input array
+    x_coords = indices[:,1]
+    y_coords = indices[:,0]
+
+    # Create a scatter plot of the points
+    plt.scatter(x_coords, y_coords, s=1)
     plt.imshow(b, cmap='viridis')
     plt.colorbar()
     plt.show()
