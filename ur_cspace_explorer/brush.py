@@ -2,57 +2,60 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-
 def brushfire(configuration_space):
+    """
+    Brushfire function:
+    Starts by creating a list of starting points, which is the edges and objects found in the array
+    Then creates a queue wherein we walk to all neighbours and check if that area has been visited before
+    If the neighbour is a new area the current distance from the starting point is saved
+    we repeat this process till there are no more items in the queue
+    """
     configuration_space=np.pad(configuration_space,pad_width=1, mode="constant")
-    empty=np.zeros_like(configuration_space)
+    empty=np.zeros_like(configuration_space, dtype=int)
     empty[configuration_space != -1] = -1
 
-    startpoints= np.where(configuration_space!=-1)
-    queer=[]
-    for i in range(len(startpoints[0])):
-        row=startpoints[0][i]
-        col=startpoints[1][i]
-        queer.append([row,col])
+    obstacles = set(zip(*np.where(configuration_space != -1)))  # Store obstacle cells as a set
+
+    queue = list(obstacles)
     distance = 1
-    while queer:
-        row,col = queer.pop(0)
-        kernel = np.array([(row+1,col),(row-1,col),(row,col-1),(row,col+1)])
-        for neighbour in kernel:
-            if neighbour[0] < 0 or neighbour[0] >= empty.shape[0] or \
-                neighbour[1] < 0 or neighbour[1] >= empty.shape[1]:
-                continue
-            if empty[neighbour[0],neighbour[1]] != 0:
-                continue
-            empty[neighbour[0],neighbour[1]]= distance
-            queer.append(neighbour)
-            distance += 1
+    while queue:
+        size = len(queue)
+        for _ in range(size):
+            row, col = queue.pop(0)
+            for d_row, d_col in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                neighbour = (row + d_row, col + d_col)
+                if neighbour in obstacles or \
+                        neighbour[0] < 0 or neighbour[0] >= empty.shape[0] or \
+                        neighbour[1] < 0 or neighbour[1] >= empty.shape[1]:
+                    continue  # Skip obstacle cells and cells outside the grid
+                # Add the marked point into obstacles
+                obstacles.add(neighbour)
+                empty[neighbour[0], neighbour[1]] = distance
+                queue.append(neighbour)
+        distance += 1
     empty[empty == -1] = 0
     return empty
 
 
-def find_voronoi_points(brushfire_array):
-
-    # Calculate the distance to the nearest zero value along the rows and cols
-    equal_dist_indices = []
-    for i in range(brushfire_array.shape[0]):
-        for j in range(brushfire_array.shape[1]):
-            if brushfire_array[i, j] == 0:  # If we are on a wall, the distance is very short
-                continue
-            # Check the distances along the rows
-                # Compute the distances to the nearest zero value in all four directions
-            left_dist = np.abs(j - np.where(brushfire_array[i, :j] == 0)[0][-1]) if np.any(brushfire_array[i, :j] == 0) else np.inf
-            right_dist = np.abs(j - np.where(brushfire_array[i, j + 1:] == 0)[0][0] + j + 1) if np.any(brushfire_array[i, j + 1:] == 0) else np.inf
-            up_dist = np.abs(i - np.where(brushfire_array[:i, j] == 0)[0][-1]) if np.any(brushfire_array[:i, j] == 0) else np.inf
-            down_dist = np.abs(i - np.where(brushfire_array[i + 1:, j] == 0)[0][0] + i + 1) if np.any(brushfire_array[i + 1:, j] == 0) else np.inf
-
-            # Check if the distances to any zero value in the four directions are equal to another
-            if (left_dist == right_dist) or (left_dist == up_dist) or (left_dist == down_dist) or (
-                    right_dist == up_dist) or (right_dist == down_dist) or (up_dist == down_dist):
-                equal_dist_indices.append([i, j])
-
-    # Return only the indexes of where the edge is
-    return equal_dist_indices
+def find_voronoi(brushfire_array):
+    """
+    Voronoi graph function, found by looking at the increase of size in the brushfire array
+    """
+    voronoi = []
+    for y in range(1, len(brushfire_array) - 1):
+        for x in range(1, len(brushfire_array[y]) - 1):
+            # By counting if the point is higher than least seven of it's neighbours we can figure out the voronoi
+            count = 0
+            # Neighbours are indexes to every side
+            neighbours = [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]]
+            for neighbour in neighbours:
+                y2, x2 = np.array(neighbour)+np.array([y, x])
+                if brushfire_array[y, x] >= brushfire_array[y2, x2] and brushfire_array[y, x] != 0:
+                    count += 1
+            # Check if the index satisfies the condition
+            if count >= 7:
+                voronoi.append([y, x])
+    return np.array(voronoi)
 
 
 
@@ -60,14 +63,11 @@ def find_voronoi_points(brushfire_array):
 def main():
     configspace = np.load("config.pkl", allow_pickle=True)
     b=brushfire(configspace)
-    indices = np.array(find_voronoi_points(b))
-    # Extract the x and y coordinates from the input array
-    x_coords = indices[:,1]
-    y_coords = indices[:,0]
-
-    # Create a scatter plot of the points
-    plt.scatter(x_coords, y_coords, s=1)
+    indices = find_voronoi(b)
+    v_x = indices[:, 0]
+    v_y = indices[:, 1]
     plt.imshow(b, cmap='viridis')
+    plt.scatter(v_y, v_x, c='red', s=10)
     plt.colorbar()
     plt.show()
 
