@@ -1,8 +1,31 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.ndimage import label
+from matplotlib.colors import ListedColormap
 
 
-def brushfire(configuration_space):
+def connected_objects(input_array):
+    mask = input_array >= 0
+    # perform connected component analysis
+    # Could have done this myself through a grassfire method, but I am lazy
+    labeled_arr, num_features = label(mask)
+
+    # create an array to store the sorted labels
+    sorted_arr = np.zeros_like(labeled_arr)
+
+    # sort the labels based on the size of the connected component
+    for i in range(1, num_features + 1):
+        sorted_arr[labeled_arr == i] = i
+    # add in the edges as an object each
+    sorted_arr[0] = num_features+2
+    sorted_arr[-1] = num_features+3
+    sorted_arr[:, 0] = num_features+4
+    sorted_arr[:, -1] = num_features+5
+
+    return sorted_arr
+
+
+def brushfire(configuration_space, group_array):
     """
     Brushfire function:
     Starts by creating a list of starting points, which is the edges and objects found in the array
@@ -10,34 +33,63 @@ def brushfire(configuration_space):
     If the neighbour is a new area the current distance from the starting point is saved
     we repeat this process till there are no more items in the queue
     """
-    configuration_space=np.pad(configuration_space,pad_width=1, mode="constant")
-    empty=np.zeros_like(configuration_space, dtype=int)
-    empty[configuration_space != -1] = -1
+    configuration_space[0] = 2
+    configuration_space[-1] = 2
+    configuration_space[:, 0] = 2
+    configuration_space[:, -1] = 2
+    # Create an output array
+    brushfire_grid = np.zeros_like(configuration_space, dtype=int)
+    # Fill in the objects, with an arbitrary number that we will not get near
+    brushfire_grid[configuration_space != -1] = -1
+
+    # Create an output array for the obstacle grid
+    obstacle_grid = np.copy(group_array)
 
     obstacles = set(zip(*np.where(configuration_space != -1)))  # Store obstacle cells as a set
-
-    queue = list(obstacles)
+    # We find the group associated with the obstacle
+    groups = [group_array[i, j] for i, j in obstacles]
+    # Add the two into the queue
+    queue = list(zip(obstacles, groups))
     distance = 1
+    # Continue to loop through until the queue is empty
     while queue:
         size = len(queue)
         for _ in range(size):
-            row, col = queue.pop(0)
+            pos, group = queue.pop(0)
+            row, col = pos
             for d_row, d_col in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                 neighbour = (row + d_row, col + d_col)
                 if neighbour in obstacles or \
-                        neighbour[0] < 0 or neighbour[0] >= empty.shape[0] or \
-                        neighbour[1] < 0 or neighbour[1] >= empty.shape[1]:
+                        neighbour[0] < 0 or neighbour[0] >= brushfire_grid.shape[0] or \
+                        neighbour[1] < 0 or neighbour[1] >= brushfire_grid.shape[1]:
                     continue  # Skip obstacle cells and cells outside the grid
                 # Add the marked point into obstacles
                 obstacles.add(neighbour)
-                empty[neighbour[0], neighbour[1]] = distance
-                queue.append(neighbour)
+                # Write in the distance
+                brushfire_grid[neighbour[0], neighbour[1]] = distance
+                # Write in what object the distance derived from
+                obstacle_grid[neighbour[0], neighbour[1]] = group
+                # Append the new position into the queue
+                queue.append([neighbour, group])
+        # For every run through the queue we increase the distance by one
         distance += 1
-    empty[empty == -1] = 0
-    return empty
+    # Change the -1 to zero, such that anything inside an obstacle have 0 distance to one
+    brushfire_grid[brushfire_grid == -1] = 0
+    return brushfire_grid, obstacle_grid
 
 
-def find_voronoi(brushfire_array):
+def find_voronoi(obstacle_grid):
+    import cv2
+    """
+    Voronoi graph function, found by looking at the obstacle grid
+    """
+    # Find edges of expanded obstacle grid
+    edges = cv2.Canny(obstacle_grid.astype(np.uint8), 0, 1)
+
+    return edges
+
+
+def find_voronoi_brushfire(brushfire_array):
     """
     Voronoi graph function, found by looking at the increase of size in the brushfire array
     """
@@ -62,12 +114,34 @@ def find_voronoi(brushfire_array):
 
 def main():
     configspace = np.load("config.pkl", allow_pickle=True)
-    b=brushfire(configspace)
-    indices = find_voronoi(b)
-    v_x = indices[:, 0]
-    v_y = indices[:, 1]
-    plt.imshow(b, cmap='viridis')
-    plt.scatter(v_y, v_x, c='red', s=10)
+    # Find out which object is connected
+    blobs = connected_objects(configspace)
+    # Run the brushfire
+    brush, object_grid = brushfire(configspace, blobs)
+    # Voronoi from the brushfire
+    indices_brush = find_voronoi_brushfire(brush)
+    vb_x = indices_brush[:, 0]
+    vb_y = indices_brush[:, 1]
+    # Plot the brushfire version
+    plt.imshow(brush, cmap='viridis')
+    plt.scatter(vb_y, vb_x)
+    plt.colorbar()
+    plt.show()
+
+    # Voronoi from the obstacle grid
+    vor = find_voronoi(object_grid)
+    # Plot the object grid alone
+    plt.imshow(object_grid, cmap='viridis')
+    plt.colorbar()
+    plt.show()
+    # plot the voronoi from the object grid
+    vor_map = brush
+    vor_map[vor != 0] = -1
+    # Define the colormap
+    colors = ["#440154", "#3e4a89", "#2a788e", "#22a884", "#7ebf41", "#fde725"]
+    cmap = ListedColormap(colors)
+    cmap.set_under('r')
+    plt.imshow(vor_map, cmap=cmap, vmin=0)
     plt.colorbar()
     plt.show()
 
