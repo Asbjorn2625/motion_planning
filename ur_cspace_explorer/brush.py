@@ -16,11 +16,14 @@ def connected_objects(input_array):
     # sort the labels based on the size of the connected component
     for i in range(1, num_features + 1):
         sorted_arr[labeled_arr == i] = i
-    # add in the edges as an object each
-    sorted_arr[0] = num_features+2
-    sorted_arr[-1] = num_features+3
-    sorted_arr[:, 0] = num_features+4
-    sorted_arr[:, -1] = num_features+5
+
+    # We only want to add the wall where there are no objects
+    zero_entities = sorted_arr == 0
+    # Set in wall points as an object
+    sorted_arr[0][zero_entities[0]] = num_features + 2
+    sorted_arr[-1][zero_entities[-1]] = num_features + 3
+    sorted_arr[:, 0][zero_entities[:, 0]] = num_features + 4
+    sorted_arr[:, -1][zero_entities[:, -1]] = num_features + 5
 
     return sorted_arr
 
