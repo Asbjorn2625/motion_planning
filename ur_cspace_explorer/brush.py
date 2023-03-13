@@ -127,7 +127,7 @@ def main():
     vb_y = indices_brush[:, 1]
     # Plot the brushfire version
     plt.imshow(brush, cmap='viridis')
-    plt.scatter(vb_y, vb_x)
+    plt.scatter(vb_y, vb_x, c='r')
     plt.colorbar()
     plt.show()
 
