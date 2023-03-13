@@ -87,7 +87,7 @@ def find_voronoi(obstacle_grid):
     Voronoi graph function, found by looking at the obstacle grid
     """
     # Find edges of expanded obstacle grid
-    edges = cv2.Canny(obstacle_grid.astype(np.uint8), 0, 1)
+    edges = cv2.Canny(obstacle_grid.astype(np.uint8), 0, 0)
 
     return edges
 
@@ -114,39 +114,43 @@ def find_voronoi_brushfire(brushfire_array):
 
 
 
-
-def main():
+def create_bursh_voronoi_grid(plot=True):
     configspace = np.load("config.pkl", allow_pickle=True)
     # Find out which object is connected
     blobs = connected_objects(configspace)
     # Run the brushfire
     brush, object_grid = brushfire(configspace, blobs)
-    # Voronoi from the brushfire
-    indices_brush = find_voronoi_brushfire(brush)
-    vb_x = indices_brush[:, 0]
-    vb_y = indices_brush[:, 1]
-    # Plot the brushfire version
-    plt.imshow(brush, cmap='viridis')
-    plt.scatter(vb_y, vb_x, c='r')
-    plt.colorbar()
-    plt.show()
 
     # Voronoi from the obstacle grid
     vor = find_voronoi(object_grid)
-    # Plot the object grid alone
-    plt.imshow(object_grid, cmap='viridis')
-    plt.colorbar()
-    plt.show()
-    # plot the voronoi from the object grid
-    vor_map = brush
-    vor_map[vor != 0] = -1
-    # Define the colormap
-    colors = ["#440154", "#3e4a89", "#2a788e", "#22a884", "#7ebf41", "#fde725"]
-    cmap = ListedColormap(colors)
-    cmap.set_under('r')
-    plt.imshow(vor_map, cmap=cmap, vmin=0)
-    plt.colorbar()
-    plt.show()
+
+    if plot:
+        # Voronoi from the brushfire
+        indices_brush = find_voronoi_brushfire(brush)
+        vb_x = indices_brush[:, 0]
+        vb_y = indices_brush[:, 1]
+        # Plot the brushfire version
+        plt.imshow(brush, cmap='viridis')
+        plt.scatter(vb_y, vb_x)
+        plt.colorbar()
+        plt.show()
+
+        # Plot the object grid alone
+        plt.imshow(object_grid, cmap='viridis')
+        plt.colorbar()
+        plt.show()
+
+        # plot the voronoi from the object grid
+        vor_map = brush
+        vor_map[vor != 0] = -1
+        # Define the colormap
+        colors = ["#440154", "#3e4a89", "#2a788e", "#22a884", "#7ebf41", "#fde725"]
+        cmap = ListedColormap(colors)
+        cmap.set_under('r')
+        plt.imshow(vor_map, cmap=cmap, vmin=0)
+        plt.colorbar()
+        plt.show()
+    return brush, vor
 
 if __name__=="__main__":
-    main()
+    create_bursh_voronoi_grid()
