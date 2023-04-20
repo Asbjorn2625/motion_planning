@@ -106,17 +106,11 @@ def path_finder(array, start, goal, astar=True, diagonal=True):
 
                     if array[neighbor[0]][neighbor[1]] == 1:
                         continue
-
                 else:
-
                     # array bound y walls
-
                     continue
-
             else:
-
                 # array bound x walls
-
                 continue
 
             if neighbor in close_set and tentative_g_score >= gscore.get(neighbor, 0):
